@@ -10,6 +10,10 @@ focus = 0
 rng_pos = (0,0)
 # cur_pos = (W_px//2, adj_H//2) #pyautogui.position()
 #CANV_MODE = 'STABILITY' #'LEFTRIGHT' # 'UPDOWN'
+
+def interpolate(COLOR1, COLOR2, x_cur, x_max):
+	return (np.array(COLOR1) + (np.array(COLOR2) - np.array(COLOR1))*x_cur/x_max).tolist()
+
 def draw_grid(img, line_color=(0, 255, 0), thickness=1, type_=cv2.LINE_AA, pxstep=50):
 	'''(ndarray, 3-tuple, int, int) -> void
 	draw gridlines on img
@@ -247,14 +251,14 @@ def accuracy_measure(pts):
 
 	pdb.set_trace()
 
-def display_canv(CANV_MODE, cur_pos=None):
+def display_canv(CANV_MODE, cur_pos=None, targets=None, cur_target = None, cur_looking = 0, threshold =10):
 	# THIS FN returns RNG_POS and CUR_POS as TUPLES
 	# RETURN FORMAT: (TRUE_POS, CUR_POS) ..  RNG == TRUE
 	global focus, rng_pos
 	img = np.zeros((adj_H, W_px,3))
 
 	img = draw_grid(img, pxstep= GRID_STEP)
-	
+	targets = targets or []
 	if CANV_MODE == 'RNG':
 		#cv2.putText(img, str_pos, (cur_pos[0]+5, cur_pos[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, WHITE, 1)
 		#rng_pos = random_sequence(img, cur_pos)
@@ -273,7 +277,10 @@ def display_canv(CANV_MODE, cur_pos=None):
 		#cur_pos = mid_point
 		# accuracy_measure(cur_pos, rng_pos)
 		str_pos = str(cur_pos)
-		img = color_grid(img, cur_pos, paint=BLUE, pxstep=GRID_STEP)
+		img = color_grid(img, cur_pos, paint=BLUE, pxstep=5)
+		if cur_target is not None:
+			img = color_grid(img, [int(x) for x in cur_target.tolist()], paint=interpolate(BLACK, WHITE, cur_looking, threshold), pxstep=GRID_STEP)
+		
 		xy_cur = (cur_pos[0]//GRID_STEP*GRID_STEP,(cur_pos[1]-bottom_line//2)//GRID_STEP*GRID_STEP )
 		xy_rng = (rng_pos[0]//GRID_STEP*GRID_STEP,(rng_pos[1]-bottom_line//2)//GRID_STEP*GRID_STEP )
 		# IF RANDOM SPOT EQUALS THE ESTIMATED FOCUS SPOT COLOR IT GREEN!

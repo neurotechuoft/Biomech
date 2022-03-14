@@ -36,7 +36,7 @@ rgb_fp = 'det/'
 
 # AVERAGING OVER GAZE VALUES TOGGLE
 #------------------------------------------------
-GAZE_AVG_FLAG = 0
+GAZE_AVG_FLAG = 1
 num_frames = 3 # num of frames to average over
 #------------------------------------------------
 # AVERAGING OVER LANDMARKS TOGGLE
@@ -44,6 +44,14 @@ AVG_LANDMARKS = 0
 num_avg_frames = 3 # num of frames to average over
 
 
+# LIMIT FOR STD
+LIMIT_STD = np.array([30, 30])
+
+# FRAMES BEFORE DETARGET
+THRESHOLD = 5
+
+# FRAMES BEFORE CLICK
+PATIENCE = 20
 # GLOBAL VARIABLES
 #------------------------------------------------
 img = np.zeros((adj_H, W_px,3))
@@ -100,14 +108,53 @@ class Demo:
         self.face_gaze = []
         self.face_cent = []
 
+        self.N = 10
+        self.last_n = []
+        self.target = None
+        self.not_looking = 0
+        self.looking = 0
+
+        self.permanent_targets = []
+    def reset(self):
+        self.target = None
+        self.not_looking = 0
+        self.looking = 0
     def run(self) -> None:
         while True:
-
             if DEMO:
-                pts = draw_utils.display_canv(CANV_MODE=CANV_MODE, cur_pos=mid_point) #cur_pos=cur_pos
+
+                self.last_n.append(mid_point)
+                while len(self.last_n) > self.N:
+                    self.last_n.pop(0)
+                
+                if len(self.last_n) == self.N:
+                    std_points = np.std(self.last_n, axis=0)
+                    if (np.minimum(std_points, LIMIT_STD) == std_points).all():
+                        avg_point = np.mean(self.last_n, axis=0)
+                        if self.target is None:
+                            self.target = avg_point
+                            print('TARGETED')
+                        elif (np.maximum(np.abs(self.target - avg_point), std_points) != std_points).any():
+                            self.not_looking += 1
+                        else:
+                            self.not_looking = 0 #self.not_looking -= REWARD; self.not_looking = max(0, self.not_looking)
+                            self.looking += 1
+                    elif self.target is not None:
+                        self.not_looking += 1
+
+                    if self.not_looking > THRESHOLD:
+                        self.reset()
+                print(self.last_n)
+                print(np.std(self.last_n, axis=0))
+                if self.looking > PATIENCE:
+                    print("LOOKING AT:", self.target)
+                    self.permanent_targets.append(self.target)
+                    self.reset()
+                pts = draw_utils.display_canv(CANV_MODE=CANV_MODE, cur_pos=mid_point, targets=self.permanent_targets, cur_target = self.target, cur_looking = self.looking, threshold = PATIENCE) #cur_pos=cur_pos
                 # print(mid_point)
-                if mid_point != (0, 0):
-                    pyautogui.moveTo(*mid_point)
+                # if mid_point != (0, 0):
+                #     pyautogui.moveTo(*mid_point)
+                
                 self.pts.append(pts)
                 self.true_pos.append(pts[0])
                 self.cur_pos.append(pts[1])
@@ -115,7 +162,6 @@ class Demo:
                 self._wait_key()
                 if self.stop:
                     break
-
             ok, frame = self.cap.read()
             if not ok:
                 break
